@@ -254,7 +254,7 @@ class RemoteAuthoritiesImpl {
 			query += `&${connectionTokenQueryName}=${encodeURIComponent(connectionToken)}`;
 		}
 		return URI.from({
-			scheme: platform.isWeb ? this._preferredWebSchema : Schemas.vscodeRemoteResource,
+			scheme: platform.isWeb ? (host && /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(host) ? 'http' : this._preferredWebSchema) : Schemas.vscodeRemoteResource,
 			authority: `${host}:${port}`,
 			path: this._remoteResourcesPath,
 			query

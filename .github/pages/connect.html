@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connect - VS Code Web</title>
+<style>
+	:root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+	body { max-width: 34rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+	label { display: block; margin-top: 1rem; font-weight: 600; }
+	input, button { font: inherit; padding: .6rem; width: 100%; box-sizing: border-box; margin-top: .25rem; }
+	button { margin-top: 1rem; }
+	pre { overflow-x: auto; padding: .75rem; background: rgba(127,127,127,.15); border-radius: 6px; }
+	#result { margin-top: .75rem; min-height: 1.5rem; }
+</style>
+</head>
+<body>
+<h1>Connect to a remote server</h1>
+<p>Connection details stay in this browser and are never stored in the repository.</p>
+
+<h2>1. On the server (over SSH, once)</h2>
+<pre>curl -fsSL https://@OWNER@.github.io@BASE@/install-server.sh | bash</pre>
+<p>This installs the matching server under <code>~/.vscode-web-remote</code> if needed, starts it on loopback and prints a token. It does not touch <code>~/.vscode-server</code>.</p>
+
+<h2>2. Forward the port</h2>
+<p>Use your SSH app's local port forward (through your jump host) to <code>127.0.0.1:18765</code> on the server.</p>
+
+<h2>3. Connect</h2>
+<form id="f">
+	<label>Host <input id="remote" value="localhost:18765" autocapitalize="off" autocorrect="off" required></label>
+	<label>Token <input id="tkn" type="password" autocapitalize="off" autocorrect="off" required></label>
+	<label>Folder (optional) <input id="folder" placeholder="/home/you/project" autocapitalize="off" autocorrect="off"></label>
+	<button type="button" id="test">Test connection</button>
+	<div id="result" role="status"></div>
+	<button type="submit">Open</button>
+</form>
+
+<script>
+	var $ = function (id) { return document.getElementById(id); };
+	try { $('remote').value = localStorage.getItem('vsw.remote') || $('remote').value; } catch (e) { }
+	$('test').onclick = function () {
+		var out = $('result');
+		out.textContent = 'Testing...';
+		var ws;
+		var t = setTimeout(function () { out.textContent = 'Timed out: nothing answered. Is the port forward running?'; try { ws.close(); } catch (e) { } }, 6000);
+		try {
+			ws = new WebSocket((location.protocol === 'https:' && !/^(localhost|127\.0\.0\.1|\[::1\])(:|$)/.test($('remote').value) ? 'wss://' : 'ws://') + $('remote').value + '/?reconnectionToken=probe&reconnection=false&skipWebSocketFrames=false');
+		} catch (e) { clearTimeout(t); out.textContent = 'Blocked by the browser: ' + e.message; return; }
+		ws.onopen = function () { clearTimeout(t); out.textContent = 'Reachable. The browser allows this connection.'; ws.close(); };
+		ws.onerror = function () { clearTimeout(t); out.textContent = 'Failed. Either the forward is not up, or the browser blocks insecure WebSockets from this https page.'; };
+	};
+	$('f').onsubmit = function (e) {
+		e.preventDefault();
+		var q = $('folder').value ? '?folder=' + encodeURIComponent($('folder').value) : '';
+		location.href = '@BASE@/' + q + '#remote=' + encodeURIComponent($('remote').value) + '&tkn=' + encodeURIComponent($('tkn').value);
+	};
+</script>
+</body>
+</html>
