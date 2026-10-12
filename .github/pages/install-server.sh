@@ -7,7 +7,7 @@
 set -euo pipefail
 
 COMMIT=@COMMIT@
-URL=https://github.com/@REPO@/releases/download/server-${COMMIT:0:12}/reh-web-linux-x64.tar.gz
+URL=${VSW_URL:-https://github.com/@REPO@/releases/download/server-${COMMIT:0:12}/reh-web-linux-x64.tar.gz}
 ROOT=${VSW_HOME:-$HOME/.vscode-web-remote}
 PORT=${VSW_PORT:-18765}
 DIR=$ROOT/server/$COMMIT

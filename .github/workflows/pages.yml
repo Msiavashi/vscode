@@ -3,7 +3,6 @@ name: Deploy web to GitHub Pages
 on:
   push:
     branches: [main]
-    paths: ['.github/pages/**', '.github/workflows/pages.yml', 'build/next/index.ts']
   workflow_dispatch:
 
 permissions:
@@ -16,6 +15,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The remote server must be built from the same commit as the web app: the protocol rejects a version mismatch.
+  server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: sudo apt-get update && sudo apt-get install -y libxkbfile-dev libx11-dev libsecret-1-dev libkrb5-dev pkg-config build-essential
+      - run: npm ci
+      - run: npm run gulp vscode-reh-web-linux-x64-min
+      - name: Package and publish server
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="server-${GITHUB_SHA::12}"
+          tar -czf reh-web-linux-x64.tar.gz -C .. vscode-reh-web-linux-x64
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" reh-web-linux-x64.tar.gz --clobber
+          else
+            gh release create "$tag" reh-web-linux-x64.tar.gz --target "$GITHUB_SHA" --prerelease \
+              --title "Web server ${GITHUB_SHA::12}" --notes "Remote server matching the Pages web app at ${GITHUB_SHA}."
+          fi
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -26,14 +55,14 @@ jobs:
           node-version-file: .nvmrc
       - run: .github/pages/install.sh
       - run: npm run gulp vscode-web-min
-      - name: Render index.html
-        run: node .github/pages/make-index.mjs ../vscode-web "/${GITHUB_REPOSITORY#*/}"
+      - name: Render site
+        run: node .github/pages/make-index.mjs ../vscode-web "/${GITHUB_REPOSITORY#*/}" "$GITHUB_SHA" "$GITHUB_REPOSITORY"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ../vscode-web
 
   deploy:
-    needs: build
+    needs: [server, build]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
