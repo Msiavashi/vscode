@@ -548,9 +548,13 @@ function prepareCopilotRipgrepShimTaskREH(platform: string, arch: string, destin
 				compileNativeExtensionsBuildTask,
 				task.task(`node-${platform}-${arch}`) as task.Task,
 				util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
-				packageTask(type, platform, arch, sourceFolderName, destinationFolderName),
-				prepareCopilotRipgrepShimTaskREH(platform, arch, destinationFolderName)
+				packageTask(type, platform, arch, sourceFolderName, destinationFolderName)
 			];
+
+			// The Copilot extension is not part of the self-hosted web server
+			if (type !== 'reh-web') {
+				packageTasks.push(prepareCopilotRipgrepShimTaskREH(platform, arch, destinationFolderName));
+			}
 
 			if (platform === 'win32') {
 				packageTasks.push(patchWin32DependenciesTask(destinationFolderName));
@@ -564,7 +568,7 @@ function prepareCopilotRipgrepShimTaskREH(platform: string, arch: string, destin
 				compileApiProposalNamesTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
-				compileCopilotExtensionBuildTask,
+				...(type === 'reh-web' ? [] : [compileCopilotExtensionBuildTask]),
 				compileExtensionMediaBuildTask,
 				writeISODate('out-build'),
 				minified ? esbuildBundleMinTask : esbuildBundleTask,
