@@ -34,11 +34,11 @@ const runtimeRemote = `<script>
 		var p = new URLSearchParams(location.hash.slice(1));
 		if (p.get('remote')) {
 			localStorage.setItem('vsw.remote', p.get('remote'));
-			if (p.get('tkn')) { sessionStorage.setItem('vsw.tkn', p.get('tkn')); }
+			if (p.get('tkn')) { (p.get('keep') ? localStorage : sessionStorage).setItem('vsw.tkn', p.get('tkn')); }
 			history.replaceState(null, '', location.pathname + location.search);
 		}
 		remote = localStorage.getItem('vsw.remote');
-		tkn = sessionStorage.getItem('vsw.tkn');
+		tkn = sessionStorage.getItem('vsw.tkn') || localStorage.getItem('vsw.tkn');
 	} catch (e) { }
 	if (new URLSearchParams(location.search).has('local')) { remote = undefined; }
 	if (!remote || !tkn) {
@@ -66,6 +66,8 @@ html = html.replace(/\{\{(\w+)\}\}/g, (_, k) => {
 	if (!(k in values)) { throw new Error(`Unhandled placeholder ${k}`); }
 	return values[k];
 });
+html = html.replace(/\/resources\/server\//g, '/');
+html = html.replace('</head>', '\t<script>if (\'serviceWorker\' in navigator) { navigator.serviceWorker.register(\'' + base + '/sw.js\', { scope: \'' + base + '/\' }).catch(function () { }); }</script>\n\t</head>');
 html = html.replace('<!-- Workbench Auth Session -->', runtimeRemote + '\n\t\t<!-- Workbench Auth Session -->');
 writeFileSync(join(dir, 'index.html'), html);
 writeFileSync(join(dir, '.nojekyll'), '');
@@ -74,3 +76,25 @@ const fill = s => s.replaceAll('@OWNER@', repo.split('/')[0].toLowerCase()).repl
 writeFileSync(join(dir, 'connect.html'), fill(readFileSync(join(here, 'connect.html'), 'utf8')));
 writeFileSync(join(dir, 'install-server.sh'), fill(readFileSync(join(here, 'install-server.sh'), 'utf8')));
 chmodSync(join(dir, 'install-server.sh'), 0o755);
+
+// PWA: manifest scoped to the site base, and a service worker that caches the app shell so it opens offline-fast.
+const manifest = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'));
+Object.assign(manifest, { name: 'VS Code Web', short_name: 'VS Code', start_url: `${base}/`, scope: `${base}/`, id: `${base}/`, background_color: '#1f1f1f', theme_color: '#1f1f1f' });
+delete manifest.display_override;
+writeFileSync(join(dir, 'manifest.json'), JSON.stringify(manifest, null, '\t'));
+writeFileSync(join(dir, 'sw.js'), `const CACHE = 'vsw-${commit}';
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', e => e.waitUntil(
+	caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
+self.addEventListener('fetch', e => {
+	const url = new URL(e.request.url);
+	if (e.request.method !== 'GET' || url.origin !== location.origin) { return; }
+	e.respondWith(caches.open(CACHE).then(async c => {
+		const hit = await c.match(e.request);
+		if (hit) { return hit; }
+		const res = await fetch(e.request);
+		if (res.ok) { c.put(e.request, res.clone()); }
+		return res;
+	}));
+});
+`);

@@ -30,6 +30,7 @@
 	<label>Host <input id="remote" value="localhost:18765" autocapitalize="off" autocorrect="off" required></label>
 	<label>Token <input id="tkn" type="password" autocapitalize="off" autocorrect="off" required></label>
 	<label>Folder (optional) <input id="folder" placeholder="/home/you/project" autocapitalize="off" autocorrect="off"></label>
+	<label style="font-weight:normal"><input type="checkbox" id="keep" checked style="width:auto"> Remember token on this device (needed for the installed app)</label>
 	<button type="button" id="test">Test connection</button>
 	<div id="result" role="status"></div>
 	<button type="submit">Open</button>
@@ -52,7 +53,7 @@
 	$('f').onsubmit = function (e) {
 		e.preventDefault();
 		var q = $('folder').value ? '?folder=' + encodeURIComponent($('folder').value) : '';
-		location.href = '@BASE@/' + q + '#remote=' + encodeURIComponent($('remote').value) + '&tkn=' + encodeURIComponent($('tkn').value);
+		location.href = '@BASE@/' + q + '#remote=' + encodeURIComponent($('remote').value) + '&tkn=' + encodeURIComponent($('tkn').value) + ($('keep').checked ? '&keep=1' : '');
 	};
 </script>
 </body>
